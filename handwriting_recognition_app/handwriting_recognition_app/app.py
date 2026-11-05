@@ -1,3 +1,4 @@
+import html
 import io
 import time
 from pathlib import Path
@@ -9,12 +10,75 @@ import torch.nn as nn
 import torch.nn.functional as F
 import cv2
 from PIL import Image
-from streamlit_drawable_canvas import st_canvas
+# from streamlit_drawable_canvas import st_canvas
 
 # ------------------------------------------------------------
 # APP SETTINGS
 # ------------------------------------------------------------
 st.set_page_config(page_title="Offline Handwriting Recognition", page_icon="✍️", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    /* Fluid layout that adapts from phone to desktop */
+    .block-container {
+        max-width: 1100px;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .hw-result {
+        padding: clamp(8px, 2vw, 14px);
+        border: 1px solid #888;
+        border-radius: 10px;
+        font-size: clamp(1rem, 3.5vw, 1.4rem);
+        line-height: 1.3;
+        min-height: 48px;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    .hw-confidence {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+    }
+    .hw-chip {
+        flex: 1 1 72px;
+        min-width: 62px;
+        max-width: 120px;
+        padding: 5px 8px;
+        border: 1px solid rgba(128, 128, 128, 0.35);
+        border-radius: 10px;
+        text-align: center;
+    }
+    .hw-chip .char {
+        display: block;
+        font-size: clamp(0.95rem, 3vw, 1.15rem);
+        font-weight: 600;
+    }
+    .hw-chip .conf {
+        display: block;
+        font-size: 0.78rem;
+        opacity: 0.75;
+    }
+    [data-testid="stExpander"] {
+        margin-top: 1rem;
+    }
+    @media (max-width: 640px) {
+        .block-container {
+            padding-left: 0.6rem;
+            padding-right: 0.6rem;
+        }
+        h1 {
+            font-size: 1.6rem !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 CHARS = [
     ' ', '!', '"', '#', '&', "'", '(', ')', '*', '+',
@@ -227,7 +291,7 @@ def recognize(image, model, device):
 # ------------------------------------------------------------
 # INTERFACE
 # ------------------------------------------------------------
-st.title("✍️ Offline Handwriting Recognition")
+# st.title("✍️ Offline Handwriting Recognition")
 st.caption("Write or upload a one-line handwriting sample, then submit it to the trained CNN–TCN–CTC model.")
 
 with st.sidebar:
@@ -239,7 +303,7 @@ with st.sidebar:
     )
     st.markdown("---")
     st.write("**Supported input**")
-    st.write("English handwriting using the model's trained character set: uppercase and lowercase letters, digits, spaces, and supported punctuation.")
+    st.write("The model's trained character set from Latin Alphabet, Digits, Punctuations and Symbols.")
     st.caption("The app runs locally. The model is loaded once and is not retrained when you press Recognize.")
 
 checkpoint_path = Path(checkpoint).expanduser()
@@ -255,141 +319,174 @@ else:
         model, device = None, None
         st.error(f"Could not load checkpoint: {error}")
 
-if "canvas_reset" not in st.session_state:
-    st.session_state.canvas_reset = 0
+# if "canvas_reset" not in st.session_state:
+#     st.session_state.canvas_reset = 0
 
-st.subheader("Handwriting sample")
-draw_tab, upload_tab = st.tabs(["Write by hand", "Upload an image"])
+left_panel, right_panel = st.columns([1, 1], gap="medium")
 
-with draw_tab:
-    st.write("Use your mouse, trackpad, touchscreen, or stylus. Write on one line where possible.")
-    left, right = st.columns([3, 1])
-    with left:
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)",
-            stroke_width=4,
-            stroke_color="#111111",
-            background_color="#FFFFFF",
-            height=220,
-            width=900,
-            drawing_mode="freedraw",
-            key=f"handwriting_canvas_{st.session_state.canvas_reset}",
-            display_toolbar=True,
-            update_streamlit=True,
-            return_image_data=True,
-        )
-    with right:
-        st.markdown("**Tips**")
-        st.write("• Write naturally and clearly.")
-        st.write("• Keep the sentence on one line.")
-        st.write("• Leave small spaces between words.")
-        st.write("• Avoid writing outside the canvas.")
+# with draw_tab:
+#     st.write("Use your mouse, trackpad, touchscreen, or stylus. Write on one line where possible.")
+#     left, right = st.columns([3, 1])
+#     with left:
+#         canvas_result = st_canvas(
+#             fill_color="rgba(255, 255, 255, 0)",
+#             stroke_width=4,
+#             stroke_color="#111111",
+#             background_color="#FFFFFF",
+#             height=220,
+#             width=900,
+#             drawing_mode="freedraw",
+#             key=f"handwriting_canvas_{st.session_state.canvas_reset}",
+#             display_toolbar=True,
+#             update_streamlit=True,
+#             return_image_data=True,
+#         )
+#     with right:
+#         st.markdown("**Tips**")
+#         st.write("• Write naturally and clearly.")
+#         st.write("• Keep the sentence on one line.")
+#         st.write("• Leave small spaces between words.")
+#         st.write("• Avoid writing outside the canvas.")
+#
+#     button_col1, button_col2 = st.columns([1, 2])
+#     with button_col1:
+#         if st.button("🧹 Clear handwriting", use_container_width=True):
+#             st.session_state.canvas_reset += 1
+#             st.session_state.pop("last_result", None)
+#             st.rerun()
+#     with button_col2:
+#         recognize_canvas = st.button(
+#             "🔍 Recognize handwriting", type="primary", use_container_width=True
+#         )
 
-    button_col1, button_col2 = st.columns([1, 2])
-    with button_col1:
-        if st.button("🧹 Clear handwriting", use_container_width=True):
-            st.session_state.canvas_reset += 1
-            st.session_state.pop("last_result", None)
-            st.rerun()
-    with button_col2:
-        recognize_canvas = st.button(
-            "🔍 Recognize handwriting", type="primary", use_container_width=True
-        )
-
-with upload_tab:
-    st.write("Upload a photo or scan of a single line of English handwriting.")
+with left_panel:
+    st.markdown("**Upload an image**")
+    upload_reset = st.session_state.get("upload_reset", 0)
     uploaded_file = st.file_uploader(
         "Choose an image",
         type=["png", "jpg", "jpeg", "bmp", "tif", "tiff", "webp"],
-        key="handwriting_upload",
+        key=f"handwriting_upload_{upload_reset}",
+        label_visibility="collapsed",
     )
     if uploaded_file is not None:
-        st.image(uploaded_file, caption="Uploaded handwriting", use_container_width=True)
-    expected_text = st.text_input(
-        "Expected text (optional)",
-        help="Enter what the handwriting says to compare it with the model's prediction.",
-        key="expected_handwriting_text",
-    )
-    recognize_upload = st.button(
-        "🔍 Recognize uploaded image", type="primary", key="recognize_upload"
+        st.image(uploaded_file, width=180)
+    button_col1, button_col2 = st.columns([3, 1])
+    with button_col1:
+        recognize_upload = st.button(
+            "Recognize uploaded image", type="primary", key="recognize_upload", width="stretch"
+        )
+    with button_col2:
+        if st.button("Clear", key="clear_upload", width="stretch"):
+            st.session_state.upload_reset = upload_reset + 1
+            st.session_state.pop("last_result", None)
+            st.session_state.pop("last_upload_id", None)
+            st.rerun()
+
+    upload_file_id = uploaded_file.file_id if uploaded_file is not None else None
+    auto_recognize = (
+        upload_file_id is not None
+        and upload_file_id != st.session_state.get("last_upload_id")
     )
 
-recognize_clicked = recognize_canvas or recognize_upload
-if recognize_clicked:
-    if model is None:
-        st.error("The trained checkpoint is not loaded. Check the checkpoint path in the sidebar.")
-    else:
-        try:
-            if recognize_upload:
+    # recognize_clicked = recognize_canvas or recognize_upload
+    recognize_clicked = recognize_upload or auto_recognize
+    if recognize_clicked:
+        if model is None:
+            st.error("The trained checkpoint is not loaded. Check the checkpoint path in the sidebar.")
+        else:
+            try:
                 if uploaded_file is None:
                     st.error("Please upload an image first.")
                     user_image = None
                 else:
                     uploaded_file.seek(0)
                     user_image = Image.open(uploaded_file).convert("RGB")
-                result_expected_text = expected_text.strip()
-            elif canvas_result.image_data is None:
-                st.error("Please write something on the canvas first.")
-                user_image = None
-                result_expected_text = ""
+                    # result_expected_text = expected_text.strip()
+                # elif canvas_result.image_data is None:
+                #     st.error("Please write something on the canvas first.")
+                #     user_image = None
+                #     result_expected_text = ""
+                # else:
+                #     rgba = canvas_result.image_data.astype(np.uint8)
+                #     rgb_pixels = rgba[:, :, :3]
+                #     has_ink = np.any(np.min(rgb_pixels, axis=2) < 245)
+                #     if not has_ink:
+                #         st.error("The canvas is empty. Please write a word or sentence first.")
+                #         user_image = None
+                #     else:
+                #         user_image = Image.fromarray(rgba, mode="RGBA").convert("RGB")
+                #     result_expected_text = ""
+
+                if user_image is not None:
+                    with st.spinner("Recognizing handwriting..."):
+                        processed, resized, prediction, confidences, elapsed = recognize(
+                            user_image, model, device
+                        )
+                        st.session_state.last_result = {
+                            "prediction": prediction,
+                            "confidences": confidences,
+                            "elapsed": elapsed,
+                            "processed": processed,
+                            "resized": resized,
+                            "input_image": user_image,
+                            # "expected_text": result_expected_text,
+                        }
+            except Exception as error:
+                st.error(f"Recognition failed: {error}")
+            finally:
+                if upload_file_id is not None:
+                    st.session_state.last_upload_id = upload_file_id
+
+with right_panel:
+    st.markdown("**Recognition result**")
+    if "last_result" in st.session_state:
+        result = st.session_state.last_result
+        image_col, output_col = st.columns([1, 1.4], vertical_alignment="center")
+
+        with image_col:
+            input_image = result.get("input_image")
+            if input_image is not None:
+                st.image(input_image, caption="Input", width="stretch")
+
+        with output_col:
+            # expected_text = result.get("expected_text", "")
+            # if expected_text:
+            #     prediction_normalized = " ".join(result["prediction"].casefold().split())
+            #     expected_normalized = " ".join(expected_text.casefold().split())
+            #     if prediction_normalized == expected_normalized:
+            #         st.success("Correct — the prediction matches the expected text (ignoring case and extra spaces).")
+            #     else:
+            #         st.warning(f"Expected: {expected_text}")
+            if result["prediction"].strip():
+                st.markdown(
+                    f'<div class="hw-result">{html.escape(result["prediction"])}</div>',
+                    unsafe_allow_html=True,
+                )
             else:
-                rgba = canvas_result.image_data.astype(np.uint8)
-                rgb_pixels = rgba[:, :, :3]
-                has_ink = np.any(np.min(rgb_pixels, axis=2) < 245)
-                if not has_ink:
-                    st.error("The canvas is empty. Please write a word or sentence first.")
-                    user_image = None
-                else:
-                    user_image = Image.fromarray(rgba, mode="RGBA").convert("RGB")
-                result_expected_text = ""
+                st.warning("The model did not produce a readable character sequence. Try writing more clearly or using a larger canvas area.")
+            st.caption(f"Inference time: {result['elapsed']:.1f} ms")
 
-            if user_image is not None:
-                with st.spinner("Recognizing handwriting..."):
-                    processed, resized, prediction, confidences, elapsed = recognize(
-                        user_image, model, device
-                    )
-                    st.session_state.last_result = {
-                        "prediction": prediction,
-                        "confidences": confidences,
-                        "elapsed": elapsed,
-                        "processed": processed,
-                        "resized": resized,
-                        "expected_text": result_expected_text,
-                    }
-        except Exception as error:
-            st.error(f"Recognition failed: {error}")
-
-if "last_result" in st.session_state:
-    result = st.session_state.last_result
-    st.divider()
-    st.subheader("Recognition result")
-    st.markdown("**Predicted text**")
-    expected_text = result.get("expected_text", "")
-    if expected_text:
-        prediction_normalized = " ".join(result["prediction"].casefold().split())
-        expected_normalized = " ".join(expected_text.casefold().split())
-        if prediction_normalized == expected_normalized:
-            st.success("Correct — the prediction matches the expected text (ignoring case and extra spaces).")
-        else:
-            st.warning(f"Expected: {expected_text}")
-    if result["prediction"].strip():
-        st.markdown(
-            f'<div style="padding:18px;border:1px solid #888;border-radius:10px;font-size:26px;min-height:65px;overflow-wrap:anywhere">{result["prediction"]}</div>',
-            unsafe_allow_html=True,
-        )
+        if result["confidences"]:
+            st.markdown("**Character-level confidence**")
+            chips = []
+            for char, confidence in zip(result["prediction"], result["confidences"]):
+                label = "space" if char == " " else html.escape(char)
+                chips.append(
+                    f'<div class="hw-chip"><span class="char">{label}</span>'
+                    f'<span class="conf">{confidence * 100:.1f}%</span></div>'
+                )
+            st.markdown(
+                f'<div class="hw-confidence">{"".join(chips)}</div>',
+                unsafe_allow_html=True,
+            )
+        with st.expander("View processed model input"):
+            proc_col, resized_col = st.columns(2)
+            with proc_col:
+                st.image(result["processed"], caption="Thresholded", width="stretch")
+            with resized_col:
+                st.image(result["resized"], caption="Model input", width="stretch")
     else:
-        st.warning("The model did not produce a readable character sequence. Try writing more clearly or using a larger canvas area.")
-    st.caption(f"Inference time: {result['elapsed']:.1f} ms")
-    if result["confidences"]:
-        st.markdown("**Character-level confidence**")
-        confidence_columns = st.columns(min(8, len(result["confidences"])))
-        for index, (char, confidence) in enumerate(zip(result["prediction"], result["confidences"])):
-            with confidence_columns[index % len(confidence_columns)]:
-                label = "space" if char == " " else char
-                st.metric(label, f"{confidence * 100:.1f}%")
-    with st.expander("View processed model input"):
-        st.image(result["processed"], caption="Grayscale image after Otsu thresholding", use_container_width=True)
-        st.image(result["resized"], caption="Resized model input (height 128)", use_container_width=True)
+        st.info("Upload an image to see the recognition result here.")
 
 st.divider()
 st.caption("Research demonstration only. Predictions on panelists' handwriting are live demonstrations and should not be combined with the formal IAM test-set CER/WER results unless separately evaluated and documented.")
