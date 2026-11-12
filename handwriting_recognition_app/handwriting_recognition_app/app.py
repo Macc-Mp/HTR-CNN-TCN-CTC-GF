@@ -228,17 +228,22 @@ def load_model(checkpoint_path):
     return model, device
 
 
-def prepare_image(image):
-    """Matches the notebook's custom-image path: grayscale, Otsu, height 128, [-1, 1]."""
+def prepare_image(image, softness=20.0):
+    """Grayscale + soft Otsu (smooth step around the Otsu threshold), height 128, [-1, 1]."""
     image = image.convert("L")
     image_array = np.asarray(image)
-    _, binarized = cv2.threshold(
+
+    otsu_thr, _ = cv2.threshold(
         image_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
     )
-    processed = Image.fromarray(binarized)
+
+    x = (image_array.astype(np.float32) - float(otsu_thr)) / float(softness)
+    soft = (1.0 / (1.0 + np.exp(-x)) * 255.0).astype(np.uint8)
+
+    processed = Image.fromarray(soft)
     width, height = processed.size
     new_height = 128
-    new_width = max(32, int(round(width * new_height / height)))
+    new_width = max(32, int(round(width * new_height / max(height, 1))))
     new_width = min(new_width, 2048)
     resized = processed.resize((new_width, new_height), Image.Resampling.BILINEAR)
     array = np.asarray(resized).astype(np.float32) / 255.0
@@ -480,11 +485,10 @@ with right_panel:
                 unsafe_allow_html=True,
             )
         with st.expander("View processed model input"):
-            proc_col, resized_col = st.columns(2)
-            with proc_col:
-                st.image(result["processed"], caption="Thresholded", width="stretch")
-            with resized_col:
-                st.image(result["resized"], caption="Model input", width="stretch")
+            # proc_col, resized_col = st.columns(2)
+            # with proc_col:
+            #     st.image(result["processed"], caption="Thresholded", width="stretch")
+            st.image(result["resized"], caption="Model input", width="stretch")
     else:
         st.info("Upload an image to see the recognition result here.")
 
